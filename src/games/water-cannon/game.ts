@@ -64,6 +64,25 @@ export function isHit(shot: Shot, target: Target): boolean {
   return Math.hypot(shot.x - target.x, shot.y - target.y) <= target.radius;
 }
 
+/**
+ * Whether a shot that moved from (`fromX`, `fromY`) to its current position
+ * passed through the target on the way, so fast shots can't skip over it.
+ */
+export function isHitAlong(fromX: number, fromY: number, shot: Shot, target: Target): boolean {
+  const dx = shot.x - fromX;
+  const dy = shot.y - fromY;
+  const lengthSquared = dx * dx + dy * dy;
+  // The point on the shot's path closest to the target's centre.
+  const t =
+    lengthSquared === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(1, ((target.x - fromX) * dx + (target.y - fromY) * dy) / lengthSquared),
+        );
+  return Math.hypot(fromX + t * dx - target.x, fromY + t * dy - target.y) <= target.radius;
+}
+
 /** Fires one shot of water towards the aim point. Returns false if nothing fired. */
 export function fire(state: WaterCannonState, aimX: number, aimY: number): boolean {
   if (state.phase !== 'playing' || state.tank === 0) return false;
@@ -90,9 +109,11 @@ export function step(state: WaterCannonState, dt: number): void {
 
   const remaining: Shot[] = [];
   for (const shot of state.shots) {
+    const fromX = shot.x;
+    const fromY = shot.y;
     shot.x += shot.vx * dt;
     shot.y += shot.vy * dt;
-    const target = state.targets.find((t) => isHit(shot, t));
+    const target = state.targets.find((t) => isHitAlong(fromX, fromY, shot, t));
     if (target) {
       state.score += scoreForHit(target);
       state.splashes.push({ x: target.x, y: target.y, age: 0 });
